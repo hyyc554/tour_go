@@ -2,10 +2,12 @@ package main
 
 import "fmt"
 
-func Hello() string {
-	return "Hello, world"
+const HelloHead = "Hello, "
+
+func Hello(name string) string {
+	return HelloHead + name
 }
 
 func main() {
-	fmt.Println(Hello())
+	fmt.Println(Hello("WuHan"))
 }
