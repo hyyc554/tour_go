@@ -1,50 +1,51 @@
 package main
 
+// 从http端读取zip文件并解析得到压缩包里的内容
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 func main() {
-	http.HandleFunc("/zipdownload", zipHandler)
-	log.Println("Listening...")
-	http.ListenAndServe(":9999", nil)
-}
-
-func zipHandler(rw http.ResponseWriter, r *http.Request) {
-	zipName := "ZipTest.zip"
-	// 设置rw的header信息中的ctontent-type，对于zip可选以下两种
-	// rw.Header().Set("Content-Type", "application/octet-stream")
-	rw.Header().Set("Content-Type", "application/zip")
-	// 设置rw的header信息中的Content-Disposition为attachment类型
-	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipName))
-	// 向rw中写入zip文件
-	err := getZip(rw)
+	resp, err := http.Get("http://192.168.0.119:8007/static/map/map.pbf")
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Read all the files from zip archive
+	for _, zipFile := range zipReader.File {
+		fmt.Println("Reading file:", zipFile.Name)
+		unzippedFileBytes, err := readZipFile(zipFile)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		fmt.Println(string(unzippedFileBytes))
+		_ = unzippedFileBytes // this is unzipped file bytes
+
+	}
 }
 
-func getZip(w io.Writer) error {
-	// 创建zip.Writer
-	zipW := zip.NewWriter(w)
-	defer zipW.Close()
-
-	for i := 0; i < 5; i++ {
-		// 向zip中添加文件
-		f, err := zipW.Create(strconv.Itoa(i) + ".txt")
-		if err != nil {
-			return err
-		}
-		// 向文件中写入文件内容
-		_, err = f.Write([]byte(fmt.Sprintf("Hello file %d", i)))
-		if err != nil {
-			return err
-		}
+func readZipFile(zf *zip.File) ([]byte, error) {
+	f, err := zf.Open()
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	defer f.Close()
+	return ioutil.ReadAll(f)
 }
